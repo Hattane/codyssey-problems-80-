@@ -1,123 +1,158 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
-#define MAX_NAME 50
-#define MAX_TYPE 30
-#define MAX_USAGE 100
-#define MAX_QUEUE_SIZE 10
+#define MAX_STYLE 100
+#define MAX_NAME 100
+
+typedef struct {
+    char gender[10];
+    char name[MAX_NAME];
+} HairStyle;
 
 typedef struct {
     char name[MAX_NAME];
-    char type[MAX_TYPE];
-    char usage[MAX_USAGE];
-} Accessory;
+    int external_score;
+    int internal_score;
+    double total_score;
+} Suitability;
 
-typedef struct {
-    Accessory* queue[MAX_QUEUE_SIZE];
-    int front;
-    int rear;
-    int size;
-} CircularQueue;
+HairStyle styles[MAX_STYLE];
+int totalStyles = 0;
 
-CircularQueue* createQueue() {
-    CircularQueue* q = (CircularQueue*)malloc(sizeof(CircularQueue));
-    q->front = 0;
-    q->rear = 0;
-    q->size = 0;
-    return q;
-}
-
-int isFull(CircularQueue* q) {
-    return q->size == MAX_QUEUE_SIZE;
-}
-
-int isEmpty(CircularQueue* q) {
-    return q->size == 0;
-}
-
-void enqueue(CircularQueue* q, Accessory* acc) {
-    if (isFull(q)) {
-        printf("⚠️ 큐가 가득 찼습니다. 더 이상 추가할 수 없습니다.\n");
-        return;
-    }
-    q->queue[q->rear] = acc;
-    q->rear = (q->rear + 1) % MAX_QUEUE_SIZE;
-    q->size++;
-}
-
-void printQueue(CircularQueue* q) {
-    if (isEmpty(q)) {
-        printf("📭 큐가 비어 있습니다.\n");
-        return;
-    }
-    printf("\n🧢 선택한 액세서리 목록:\n");
-    for (int i = 0; i < q->size; i++) {
-        int idx = (q->front + i) % MAX_QUEUE_SIZE;
-        Accessory* acc = q->queue[idx];
-        printf("- %s (%s): %s\n", acc->name, acc->type, acc->usage);
-    }
-}
-
-int loadAccessories(const char* filename, Accessory** list) {
-    FILE* fp = fopen(filename, "r");
+// 파일에서 헤어 스타일 읽기
+void loadHairStyles(const char *filename) {
+    FILE *fp = fopen(filename, "r");
     if (!fp) {
-        perror("파일 열기 실패");
-        return 0;
+        perror("hair_style.txt 파일을 열 수 없습니다");
+        exit(1);
     }
 
-    int count = 0;
-    char line[256];
-    while (fgets(line, sizeof(line), fp)) count++;
-
-    rewind(fp);
-    *list = (Accessory*)malloc(sizeof(Accessory) * count);
-
-    int idx = 0;
-    while (fgets(line, sizeof(line), fp)) {
-        sscanf(line, "%[^,],%[^,],%[^"]", (*list)[idx].name, (*list)[idx].type, (*list)[idx].usage);
-        idx++;
+    while (fscanf(fp, "%[^,],%[^\n]\n", styles[totalStyles].gender, styles[totalStyles].name) == 2) {
+        totalStyles++;
+        if (totalStyles >= MAX_STYLE) break;
     }
+
     fclose(fp);
-    return count;
 }
 
-void applyAccessory() {
-    Accessory* allAccessories = NULL;
-    int total = loadAccessories("accessory.txt", &allAccessories);
-    if (total == 0) return;
+// 버블 정렬
+void bubbleSort(Suitability arr[], int n) {
+    for (int i = 0; i < n-1; ++i)
+        for (int j = 0; j < n-i-1; ++j)
+            if (arr[j].total_score < arr[j+1].total_score) {
+                Suitability temp = arr[j];
+                arr[j] = arr[j+1];
+                arr[j+1] = temp;
+            }
+}
 
-    CircularQueue* queue = createQueue();
+// 삽입 정렬
+void insertionSort(Suitability arr[], int n) {
+    for (int i = 1; i < n; ++i) {
+        Suitability key = arr[i];
+        int j = i - 1;
+        while (j >= 0 && arr[j].total_score < key.total_score) {
+            arr[j+1] = arr[j];
+            j--;
+        }
+        arr[j+1] = key;
+    }
+}
 
-    printf("👜 사용 가능한 액세서리 목록 (%d개):\n", total);
-    for (int i = 0; i < total; i++) {
-        printf("%d. %s (%s) - %s\n", i + 1, allAccessories[i].name, allAccessories[i].type, allAccessories[i].usage);
+// 퀵 정렬
+void quickSort(Suitability arr[], int left, int right) {
+    if (left >= right) return;
+
+    double pivot = arr[(left + right) / 2].total_score;
+    int i = left, j = right;
+
+    while (i <= j) {
+        while (arr[i].total_score > pivot) i++;
+        while (arr[j].total_score < pivot) j--;
+        if (i <= j) {
+            Suitability temp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = temp;
+            i++; j--;
+        }
     }
 
-    int selectCount;
+    if (left < j) quickSort(arr, left, j);
+    if (i < right) quickSort(arr, i, right);
+}
+
+void testHairStyles() {
+    char gender[10];
+    printf("성별을 입력하세요 (man / woman): ");
+    scanf("%s", gender);
+
+    int n;
     do {
-        printf("\n선택할 액세서리 개수 (4~6개): ");
-        scanf("%d", &selectCount);
-    } while (selectCount < 4 || selectCount > 6);
+        printf("무작위로 선택할 헤어스타일 개수 (5~10): ");
+        scanf("%d", &n);
+    } while (n < 5 || n > 10);
 
-    for (int i = 0; i < selectCount; i++) {
-        int index;
-        do {
-            printf("추가할 액세서리 번호 #%d: ", i + 1);
-            scanf("%d", &index);
-        } while (index < 1 || index > total);
-        enqueue(queue, &allAccessories[index - 1]);
+    // 헤어스타일 필터링
+    HairStyle filtered[MAX_STYLE];
+    int count = 0;
+    for (int i = 0; i < totalStyles; ++i) {
+        if (strcmp(styles[i].gender, gender) == 0) {
+            filtered[count++] = styles[i];
+        }
     }
 
-    printf("\n✅ 액세서리 큐가 구성되었습니다!\n");
-    printQueue(queue);
+    if (count < n) {
+        printf("헤어스타일이 부족합니다.\n");
+        return;
+    }
 
-    free(queue);
-    free(allAccessories);
-}
+    Suitability selected[10];
+    srand(time(NULL));
+    int used[100] = {0};
+    for (int i = 0; i < n; ++i) {
+        int idx;
+        do {
+            idx = rand() % count;
+        } while (used[idx]);
+        used[idx] = 1;
 
-// 테스트용 main 함수
-int main() {
-    applyAccessory();
-    return 0;
+        int external = 50 + rand() % 51;
+        int internal = 50 + rand() % 51;
+        double suitability = external * 0.7 + internal * 0.3;
+
+        strcpy(selected[i].name, filtered[idx].name);
+        selected[i].external_score = external;
+        selected[i].internal_score = internal;
+        selected[i].total_score = suitability;
+    }
+
+    printf("\n[정렬 방식 선택]\n1. 버블 정렬\n2. 삽입 정렬\n3. 퀵 정렬\n입력: ");
+    int sortMethod;
+    scanf("%d", &sortMethod);
+
+    switch (sortMethod) {
+        case 1:
+            bubbleSort(selected, n);
+            break;
+        case 2:
+            insertionSort(selected, n);
+            break;
+        case 3:
+            quickSort(selected, 0, n - 1);
+            break;
+        default:
+            printf("잘못된 선택입니다. 퀵 정렬을 사용합니다.\n");
+            quickSort(selected, 0, n - 1);
+    }
+
+    printf("\n[적합도 평가 결과]\n");
+    for (int i = 0; i < n; ++i) {
+        printf("헤어스타일: %s, 타인: %d, 자기: %d, 적합도: %.2f\n",
+               selected[i].name,
+               selected[i].external_score,
+               selected[i].internal_score,
+               selected[i].total_score);
+    }
 }
